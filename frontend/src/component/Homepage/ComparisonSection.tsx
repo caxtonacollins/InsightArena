@@ -79,11 +79,9 @@ export default function ComparisonSection() {
           transition={{ duration: 0.5 }}
           viewport={{ once: true }}
         >
-          More Than a{" "}
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-yellow-400">
-            Prediction
-          </span>{" "}
-          App
+          <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-yellow-400">
+            More
+          </span>{" "}Than a Prediction App
         </motion.h2>
 
         {/* Comparison Cards */}
