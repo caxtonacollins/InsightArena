@@ -6,6 +6,8 @@ import {
   BarChart2,
   Trophy,
 } from 'lucide-react';
+import { Card, CardContent } from "@/component/ui/card";
+import { motion } from "framer-motion";
 
 const features = [
   {
@@ -49,13 +51,16 @@ export default function FeatureGrid() {
     >
       <div className="max-w-5xl mx-auto">
         {/* Section title */}
-        <h2
+        <motion.h2
           id="feature-grid-title"
           className="text-white font-bold text-center mb-12"
           style={{ fontSize: 'clamp(1.6rem, 3.5vw, 2.1rem)' }}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
         >
           Everything You Need to Compete On-Chain
-        </h2>
+        </motion.h2>
 
         {/* 3×2 grid */}
         <div
@@ -66,55 +71,35 @@ export default function FeatureGrid() {
           }}
           role="list"
         >
-          {features.map(({ icon: Icon, title, body }) => (
-            <article
+          {features.map(({ icon: Icon, title, body }, index) => (
+            <motion.article
               key={title}
               role="listitem"
-              style={{
-                background: '#121633',
-                border: '1px solid rgba(255,255,255,0.06)',
-                borderRadius: '12px',
-                padding: '1.5rem',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '0.75rem',
-              }}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: index * 0.1 }}
+              whileHover={{ y: -5, transition: { duration: 0.2 } }}
             >
-              {/* Icon box */}
-              <div
-                aria-hidden="true"
-                style={{
-                  width: '2.5rem',
-                  height: '2.5rem',
-                  borderRadius: '8px',
-                  background: '#1a2b5a',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  flexShrink: 0,
-                }}
-              >
-                <Icon size={18} color="#3b82f6" strokeWidth={1.8} />
-              </div>
+              <Card className="bg-[#121633] border border-white/10 rounded-xl hover:border-blue-500/50 transition-colors">
+                <CardContent className="p-6 flex flex-col gap-3">
+                  {/* Icon box */}
+                  <div
+                    aria-hidden="true"
+                    className="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center flex-shrink-0"
+                  >
+                    <Icon size={18} className="text-blue-500" strokeWidth={1.8} />
+                  </div>
 
-              {/* Text */}
-              <h3
-                className="text-white font-bold"
-                style={{ fontSize: '0.95rem', lineHeight: 1.3 }}
-              >
-                {title}
-              </h3>
-              <p
-                style={{
-                  color: '#8b95a8',
-                  fontSize: '0.83rem',
-                  lineHeight: 1.65,
-                  margin: 0,
-                }}
-              >
-                {body}
-              </p>
-            </article>
+                  {/* Text */}
+                  <h3 className="text-white font-bold text-sm">
+                    {title}
+                  </h3>
+                  <p className="text-gray-400 text-xs leading-relaxed m-0">
+                    {body}
+                  </p>
+                </CardContent>
+              </Card>
+            </motion.article>
           ))}
         </div>
       </div>
