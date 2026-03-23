@@ -5,28 +5,29 @@ export default function Footer() {
     {
       title: "PLATFORM",
       links: [
-        { name: "Play Games", href: "/games" },
-        { name: "Tournaments", href: "/tournaments" },
+        { name: "Market", href: "/markets" },
         { name: "Leaderboard", href: "/leaderboard" },
-        { name: "FAQ", href: "/faq" },
-        { name: "Roadmap", href: "/roadmap" },
+        { name: "Create Market", href: "/create-market" },
+        { name: "Profile", href: "/profile" },
+       
       ],
     },
     {
-      title: "LEGAL",
+      title: "RESOURCES",
       links: [
+        { name: "Documentation", href: "/docs" },
+        { name: "API", href: "/api" },
+        { name: "GitHub", href: "/https://github.com/Arena1X" },
+        { name: "Smart Contracts", href: "/contracts" },
+      ],
+    },
+    {
+      title: "COMPANY",
+      links: [
+        { name: "Telegram", href: "https://t.me/+hR9dZKau8f84YTk0" },
+        { name: "Twitter", href: "https://twitter.com/InsightArena" },
+        { name: "Discord", href: "https://discord.gg/InsightArena" },
         { name: "Terms of Service", href: "/terms" },
-        { name: "Privacy Policy", href: "/privacy" },
-        { name: "Audit Reports", href: "/audits" },
-        { name: "Bug Bounty", href: "/bug-bounty" },
-      ],
-    },
-    {
-      title: "COMMUNITY",
-      links: [
-        { name: "Discord", href: "https://discord.gg/truecall" },
-        { name: "Twitter", href: "https://twitter.com/truecall" },
-        { name: "GitHub", href: "https://github.com/truecall" },
       ],
     },
   ];
