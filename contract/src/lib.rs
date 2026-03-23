@@ -1,7 +1,7 @@
 #![no_std]
 
 pub mod storage_types;
-pub use crate::storage_types::DataKey;
+pub use crate::storage_types::{DataKey, Market};
 
 use soroban_sdk::{contract, contractimpl};
 
