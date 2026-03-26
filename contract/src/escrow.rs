@@ -82,9 +82,11 @@ pub fn add_to_treasury_balance(env: &Env, fee_amount: i128) {
     env.storage()
         .persistent()
         .set(&DataKey::Treasury, &(current + fee_amount));
-    env.storage()
-        .persistent()
-        .extend_ttl(&DataKey::Treasury, PERSISTENT_THRESHOLD, PERSISTENT_BUMP);
+    env.storage().persistent().extend_ttl(
+        &DataKey::Treasury,
+        PERSISTENT_THRESHOLD,
+        PERSISTENT_BUMP,
+    );
 }
 
 /// Return the total protocol fees accumulated in the treasury.
@@ -96,9 +98,11 @@ pub fn get_treasury_balance(env: &Env) -> i128 {
         .persistent()
         .get(&DataKey::Treasury)
         .unwrap_or(0);
-    env.storage()
-        .persistent()
-        .extend_ttl(&DataKey::Treasury, PERSISTENT_THRESHOLD, PERSISTENT_BUMP);
+    env.storage().persistent().extend_ttl(
+        &DataKey::Treasury,
+        PERSISTENT_THRESHOLD,
+        PERSISTENT_BUMP,
+    );
     balance
 }
 
