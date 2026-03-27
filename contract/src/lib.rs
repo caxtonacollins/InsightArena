@@ -1,9 +1,9 @@
 #![no_std]
 
 pub mod config;
+pub mod dispute;
 pub mod errors;
 pub mod escrow;
-pub mod dispute;
 pub mod invite;
 pub mod market;
 pub mod oracle;
