@@ -8,6 +8,7 @@ pub mod invite;
 pub mod market;
 pub mod oracle;
 pub mod prediction;
+pub mod reputation;
 pub mod season;
 pub mod security;
 pub mod storage_types;
@@ -16,8 +17,8 @@ pub use crate::config::Config;
 pub use crate::errors::InsightArenaError;
 pub use crate::market::CreateMarketParams;
 pub use crate::storage_types::{
-    DataKey, InviteCode, LeaderboardEntry, LeaderboardSnapshot, Market, Prediction, Season,
-    UserProfile,
+    CreatorStats, DataKey, InviteCode, LeaderboardEntry, LeaderboardSnapshot, Market, Prediction,
+    Season, UserProfile,
 };
 
 use soroban_sdk::{contract, contractimpl, Address, Env, Symbol, Vec};
@@ -404,6 +405,17 @@ impl InsightArenaContract {
     ) -> Result<u32, InsightArenaError> {
         season::reset_season_points(&env, admin, new_season_id)
     }
+
+    // ── Reputation ────────────────────────────────────────────────────────────
+
+    /// Return the [`CreatorStats`] for a given creator address.
+    /// Returns zeroed stats if the creator has never created a market.
+    pub fn get_creator_stats(
+        env: Env,
+        creator: Address,
+    ) -> Result<CreatorStats, InsightArenaError> {
+        reputation::get_creator_stats(env, creator)
+    }
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -639,3 +651,6 @@ mod leaderboard_tests {
         assert!(matches!(result, Err(Ok(InsightArenaError::Paused))));
     }
 }
+
+#[cfg(test)]
+mod prediction_tests;
