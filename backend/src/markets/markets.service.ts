@@ -1,27 +1,27 @@
 import {
-  Injectable,
-  NotFoundException,
   BadGatewayException,
-  Logger,
-  ConflictException,
   BadRequestException,
+  ConflictException,
+  Injectable,
+  Logger,
+  NotFoundException,
 } from '@nestjs/common';
-import { PredictionStatsDto } from './dto/prediction-stats.dto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Market } from './entities/market.entity';
-import { Comment } from './entities/comment.entity';
-import { MarketTemplate } from './entities/market-template.entity';
-import { CreateMarketDto } from './dto/create-market.dto';
-import { CreateCommentDto } from './dto/create-comment.dto';
-import { UsersService } from '../users/users.service';
+import { SorobanService } from '../soroban/soroban.service';
 import { User } from '../users/entities/user.entity';
+import { UsersService } from '../users/users.service';
+import { CreateCommentDto } from './dto/create-comment.dto';
+import { CreateMarketDto } from './dto/create-market.dto';
 import {
   ListMarketsDto,
   MarketStatus,
   PaginatedMarketsResponse,
 } from './dto/list-markets.dto';
-import { SorobanService } from '../soroban/soroban.service';
+import { PredictionStatsDto } from './dto/prediction-stats.dto';
+import { Comment } from './entities/comment.entity';
+import { MarketTemplate } from './entities/market-template.entity';
+import { Market } from './entities/market.entity';
 
 @Injectable()
 export class MarketsService {
@@ -201,7 +201,11 @@ export class MarketsService {
       });
     }
 
-    qb.orderBy('market.created_at', 'DESC').skip(skip).take(limit);
+    qb.orderBy('market.is_featured', 'DESC')
+      .addOrderBy('market.featured_at', 'DESC')
+      .addOrderBy('market.created_at', 'DESC')
+      .skip(skip)
+      .take(limit);
 
     const [data, total] = await qb.getManyAndCount();
 
@@ -351,5 +355,29 @@ export class MarketsService {
     return this.marketTemplatesRepository.find({
       order: { category: 'ASC', title: 'ASC' },
     });
+  }
+
+  /**
+   * Get featured markets
+   */
+  async findFeaturedMarkets(
+    page = 1,
+    limit = 20,
+  ): Promise<PaginatedMarketsResponse> {
+    const skip = (page - 1) * limit;
+
+    const qb = this.marketsRepository
+      .createQueryBuilder('market')
+      .leftJoinAndSelect('market.creator', 'creator')
+      .where('market.is_featured = true')
+      .andWhere('market.is_public = true')
+      .andWhere('market.is_cancelled = false')
+      .orderBy('market.featured_at', 'DESC')
+      .skip(skip)
+      .take(limit);
+
+    const [data, total] = await qb.getManyAndCount();
+
+    return { data, total, page, limit };
   }
 }

@@ -1,38 +1,38 @@
 import {
-  Controller,
-  Get,
-  Post,
-  Delete,
-  Param,
   Body,
-  Query,
+  Controller,
+  Delete,
+  Get,
   HttpCode,
   HttpStatus,
+  Param,
+  Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
-import { BanGuard } from '../common/guards/ban.guard';
-import { PredictionStatsDto } from './dto/prediction-stats.dto';
 import {
+  ApiBearerAuth,
   ApiOperation,
   ApiResponse,
   ApiTags,
-  ApiBearerAuth,
 } from '@nestjs/swagger';
-import { MarketsService } from './markets.service';
-import { Market } from './entities/market.entity';
-import { Comment } from './entities/comment.entity';
-import { MarketTemplate } from './entities/market-template.entity';
-import { CreateMarketDto } from './dto/create-market.dto';
-import { CreateCommentDto } from './dto/create-comment.dto';
-import {
-  ListMarketsDto,
-  PaginatedMarketsResponse,
-} from './dto/list-markets.dto';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Public } from '../common/decorators/public.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { Role } from '../common/enums/role.enum';
+import { BanGuard } from '../common/guards/ban.guard';
 import { User } from '../users/entities/user.entity';
+import { CreateCommentDto } from './dto/create-comment.dto';
+import { CreateMarketDto } from './dto/create-market.dto';
+import {
+  ListMarketsDto,
+  PaginatedMarketsResponse,
+} from './dto/list-markets.dto';
+import { PredictionStatsDto } from './dto/prediction-stats.dto';
+import { Comment } from './entities/comment.entity';
+import { MarketTemplate } from './entities/market-template.entity';
+import { Market } from './entities/market.entity';
+import { MarketsService } from './markets.service';
 
 @ApiTags('Markets')
 @Controller('markets')
@@ -92,6 +92,22 @@ export class MarketsController {
     @Query() query: ListMarketsDto,
   ): Promise<PaginatedMarketsResponse> {
     return this.marketsService.findAllFiltered(query);
+  }
+
+  @Get('featured')
+  @Public()
+  @ApiOperation({ summary: 'Get featured markets' })
+  @ApiResponse({
+    status: 200,
+    description: 'Paginated featured markets list',
+  })
+  async getFeaturedMarkets(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ): Promise<PaginatedMarketsResponse> {
+    const pageNum = page ? parseInt(page, 10) : 1;
+    const limitNum = limit ? Math.min(parseInt(limit, 10), 50) : 20;
+    return this.marketsService.findFeaturedMarkets(pageNum, limitNum);
   }
 
   @Get(':id')

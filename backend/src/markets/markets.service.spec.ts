@@ -3,12 +3,12 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { SorobanService } from '../soroban/soroban.service';
-import { UsersService } from '../users/users.service';
 import { User } from '../users/entities/user.entity';
-import { Market } from './entities/market.entity';
+import { UsersService } from '../users/users.service';
+import { CreateMarketDto } from './dto/create-market.dto';
 import { Comment } from './entities/comment.entity';
 import { MarketTemplate } from './entities/market-template.entity';
-import { CreateMarketDto } from './dto/create-market.dto';
+import { Market } from './entities/market.entity';
 import { MarketsService } from './markets.service';
 
 type MockRepo = jest.Mocked<
@@ -149,5 +149,126 @@ describe('MarketsService', () => {
       BadRequestException,
     );
     expect(sorobanService.resolveMarket).not.toHaveBeenCalled();
+  });
+});
+
+describe('MarketsService.findFeaturedMarkets', () => {
+  let service: MarketsService;
+  let marketsRepository: jest.Mocked<Repository<Market>>;
+
+  const makeFeaturedMarket = (overrides: Partial<Market> = {}): Market =>
+    ({
+      id: `market-${Math.random()}`,
+      on_chain_market_id: `on-chain-${Math.random()}`,
+      title: 'Featured Market',
+      is_featured: true,
+      featured_at: new Date(),
+      is_public: true,
+      is_cancelled: false,
+      ...overrides,
+    }) as Market;
+
+  beforeEach(async () => {
+    marketsRepository = {
+      createQueryBuilder: jest.fn(),
+    } as any;
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        MarketsService,
+        {
+          provide: getRepositoryToken(Market),
+          useValue: marketsRepository,
+        },
+        {
+          provide: getRepositoryToken(Comment),
+          useValue: {},
+        },
+        {
+          provide: getRepositoryToken(MarketTemplate),
+          useValue: {},
+        },
+        {
+          provide: UsersService,
+          useValue: {},
+        },
+        {
+          provide: SorobanService,
+          useValue: {},
+        },
+      ],
+    }).compile();
+
+    service = module.get<MarketsService>(MarketsService);
+  });
+
+  it('returns featured markets with correct filters', async () => {
+    const mockQueryBuilder = {
+      leftJoinAndSelect: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      orderBy: jest.fn().mockReturnThis(),
+      skip: jest.fn().mockReturnThis(),
+      take: jest.fn().mockReturnThis(),
+      getManyAndCount: jest.fn(),
+    };
+
+    marketsRepository.createQueryBuilder.mockReturnValue(
+      mockQueryBuilder as any,
+    );
+
+    const featuredMarkets = [makeFeaturedMarket(), makeFeaturedMarket()];
+    mockQueryBuilder.getManyAndCount.mockResolvedValue([featuredMarkets, 2]);
+
+    const result = await service.findFeaturedMarkets(1, 20);
+
+    expect(marketsRepository.createQueryBuilder).toHaveBeenCalledWith('market');
+    expect(mockQueryBuilder.leftJoinAndSelect).toHaveBeenCalledWith(
+      'market',
+      'creator',
+    );
+    expect(mockQueryBuilder.where).toHaveBeenCalledWith(
+      'market.is_featured = true',
+    );
+    expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith(
+      'market.is_public = true',
+    );
+    expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith(
+      'market.is_cancelled = false',
+    );
+    expect(mockQueryBuilder.orderBy).toHaveBeenCalledWith(
+      'market.featured_at',
+      'DESC',
+    );
+    expect(mockQueryBuilder.skip).toHaveBeenCalledWith(0);
+    expect(mockQueryBuilder.take).toHaveBeenCalledWith(20);
+    expect(result).toEqual({
+      data: featuredMarkets,
+      total: 2,
+      page: 1,
+      limit: 20,
+    });
+  });
+
+  it('handles pagination correctly', async () => {
+    const mockQueryBuilder = {
+      leftJoinAndSelect: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      orderBy: jest.fn().mockReturnThis(),
+      skip: jest.fn().mockReturnThis(),
+      take: jest.fn().mockReturnThis(),
+      getManyAndCount: jest.fn(),
+    };
+
+    marketsRepository.createQueryBuilder.mockReturnValue(
+      mockQueryBuilder as any,
+    );
+    mockQueryBuilder.getManyAndCount.mockResolvedValue([[], 0]);
+
+    await service.findFeaturedMarkets(2, 10);
+
+    expect(mockQueryBuilder.skip).toHaveBeenCalledWith(10);
+    expect(mockQueryBuilder.take).toHaveBeenCalledWith(10);
   });
 });

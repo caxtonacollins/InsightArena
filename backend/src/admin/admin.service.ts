@@ -1,32 +1,32 @@
 import {
-  Injectable,
-  NotFoundException,
-  ConflictException,
-  BadRequestException,
   BadGatewayException,
+  BadRequestException,
+  ConflictException,
+  Injectable,
   Logger,
+  NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Between } from 'typeorm';
-import { User } from '../users/entities/user.entity';
-import { Market } from '../markets/entities/market.entity';
-import { Comment } from '../markets/entities/comment.entity';
-import { Prediction } from '../predictions/entities/prediction.entity';
-import { Competition } from '../competitions/entities/competition.entity';
-import { ActivityLog } from '../analytics/entities/activity-log.entity';
+import { Between, Repository } from 'typeorm';
 import { AnalyticsService } from '../analytics/analytics.service';
-import { NotificationsService } from '../notifications/notifications.service';
+import { ActivityLog } from '../analytics/entities/activity-log.entity';
+import { Competition } from '../competitions/entities/competition.entity';
+import { Comment } from '../markets/entities/comment.entity';
+import { Market } from '../markets/entities/market.entity';
 import { NotificationType } from '../notifications/entities/notification.entity';
+import { NotificationsService } from '../notifications/notifications.service';
+import { Prediction } from '../predictions/entities/prediction.entity';
 import { SorobanService } from '../soroban/soroban.service';
-import { ListUsersQueryDto } from './dto/list-users-query.dto';
+import { User } from '../users/entities/user.entity';
 import { ActivityLogQueryDto } from './dto/activity-log-query.dto';
-import { StatsResponseDto } from './dto/stats-response.dto';
-import { ResolveMarketDto } from './dto/resolve-market.dto';
+import { ListUsersQueryDto } from './dto/list-users-query.dto';
 import {
   ReportFormat,
   ReportQueryDto,
   ReportTimeframe,
 } from './dto/report-query.dto';
+import { ResolveMarketDto } from './dto/resolve-market.dto';
+import { StatsResponseDto } from './dto/stats-response.dto';
 
 @Injectable()
 export class AdminService {
@@ -319,6 +319,74 @@ export class AdminService {
     comment.moderation_reason = reason ?? null;
 
     return await this.commentsRepository.save(comment);
+  }
+
+  async featureMarket(marketId: string, adminId: string): Promise<Market> {
+    const market = await this.marketsRepository.findOne({
+      where: [{ id: marketId }, { on_chain_market_id: marketId }],
+    });
+
+    if (!market) {
+      throw new NotFoundException(`Market "${marketId}" not found`);
+    }
+
+    if (market.is_featured) {
+      throw new ConflictException('Market is already featured');
+    }
+
+    market.is_featured = true;
+    market.featured_at = new Date();
+    const saved = await this.marketsRepository.save(market);
+
+    // Log admin action
+    await this.analyticsService.logActivity(
+      adminId,
+      'MARKET_FEATURED_BY_ADMIN',
+      {
+        market_id: market.id,
+        featured_at: market.featured_at,
+      },
+    );
+
+    this.logger.log(
+      `Admin ${adminId} featured market "${market.title}" (${market.id})`,
+    );
+
+    return saved;
+  }
+
+  async unfeatureMarket(marketId: string, adminId: string): Promise<Market> {
+    const market = await this.marketsRepository.findOne({
+      where: [{ id: marketId }, { on_chain_market_id: marketId }],
+    });
+
+    if (!market) {
+      throw new NotFoundException(`Market "${marketId}" not found`);
+    }
+
+    if (!market.is_featured) {
+      throw new ConflictException('Market is not featured');
+    }
+
+    market.is_featured = false;
+    market.featured_at = null;
+    const saved = await this.marketsRepository.save(market);
+
+    // Log admin action
+    await this.analyticsService.logActivity(
+      adminId,
+      'MARKET_UNFEATURED_BY_ADMIN',
+      {
+        market_id: market.id,
+        unfeatured_at: new Date(),
+      },
+    );
+
+    this.logger.log(
+      `Admin ${adminId} unfeatured market "${market.title}" (${market.id})`,
+    );
+
+    return saved;
   }
 
   async getActivityReport(query: ReportQueryDto) {

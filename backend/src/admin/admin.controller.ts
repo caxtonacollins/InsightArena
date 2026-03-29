@@ -1,26 +1,26 @@
 import {
+  Body,
   Controller,
   Get,
-  Post,
-  Patch,
   Param,
-  Body,
+  Patch,
+  Post,
   Query,
-  UseGuards,
   Request,
+  UseGuards,
 } from '@nestjs/common';
-import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
-import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { Role } from '../common/enums/role.enum';
+import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { RolesGuard } from '../common/guards/roles.guard';
 import { AdminService } from './admin.service';
-import { ListUsersQueryDto } from './dto/list-users-query.dto';
-import { BanUserDto } from './dto/ban-user.dto';
 import { ActivityLogQueryDto } from './dto/activity-log-query.dto';
-import { StatsResponseDto } from './dto/stats-response.dto';
-import { ResolveMarketDto } from './dto/resolve-market.dto';
+import { BanUserDto } from './dto/ban-user.dto';
+import { ListUsersQueryDto } from './dto/list-users-query.dto';
 import { ModerateCommentDto } from './dto/moderate-comment.dto';
 import { ReportQueryDto } from './dto/report-query.dto';
+import { ResolveMarketDto } from './dto/resolve-market.dto';
+import { StatsResponseDto } from './dto/stats-response.dto';
 
 @Controller('admin')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -86,6 +86,22 @@ export class AdminController {
     @Body() dto: ModerateCommentDto,
   ) {
     return this.adminService.moderateComment(id, dto.is_moderated, dto.reason);
+  }
+
+  @Patch('markets/:id/feature')
+  async featureMarket(@Param('id') id: string, @Request() req: any) {
+    return this.adminService.featureMarket(
+      id,
+      (req as { user: { id: string } }).user.id,
+    );
+  }
+
+  @Patch('markets/:id/unfeature')
+  async unfeatureMarket(@Param('id') id: string, @Request() req: any) {
+    return this.adminService.unfeatureMarket(
+      id,
+      (req as { user: { id: string } }).user.id,
+    );
   }
 
   @Get('reports/activity')
