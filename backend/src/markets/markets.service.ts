@@ -21,11 +21,21 @@ import {
   MarketStatus,
   PaginatedMarketsResponse,
 } from './dto/list-markets.dto';
+import {
+  TrendingMarketsQueryDto,
+  TrendingMarketItem,
+  PaginatedTrendingMarketsResponse,
+} from './dto/trending-markets.dto';
 import { SorobanService } from '../soroban/soroban.service';
 
 @Injectable()
 export class MarketsService {
   private readonly logger = new Logger(MarketsService.name);
+  private trendingCache: {
+    data: TrendingMarketItem[];
+    cachedAt: number;
+  } | null = null;
+  private readonly TRENDING_CACHE_TTL_MS = 15 * 60 * 1000; // 15 minutes
 
   constructor(
     @InjectRepository(Market)
@@ -228,6 +238,93 @@ export class MarketsService {
     market.is_resolved = true;
     market.resolved_outcome = outcome;
     return this.marketsRepository.save(market);
+  }
+
+  /**
+   * Get trending markets based on recent prediction volume,
+   * participant growth rate, and time to resolution.
+   * Results are cached for 15 minutes.
+   */
+  async getTrendingMarkets(
+    dto: TrendingMarketsQueryDto,
+  ): Promise<PaginatedTrendingMarketsResponse> {
+    const page = dto.page ?? 1;
+    const limit = Math.min(dto.limit ?? 20, 50);
+
+    const allTrending = await this.computeTrendingMarkets();
+    const start = (page - 1) * limit;
+    const data = allTrending.slice(start, start + limit);
+
+    return { data, total: allTrending.length, page, limit };
+  }
+
+  private async computeTrendingMarkets(): Promise<TrendingMarketItem[]> {
+    const now = Date.now();
+    if (
+      this.trendingCache &&
+      now - this.trendingCache.cachedAt < this.TRENDING_CACHE_TTL_MS
+    ) {
+      return this.trendingCache.data;
+    }
+
+    // Fetch open (non-resolved, non-cancelled) markets
+    const markets = await this.marketsRepository.find({
+      where: { is_resolved: false, is_cancelled: false },
+      order: { created_at: 'DESC' },
+      take: 200,
+    });
+
+    const scored: TrendingMarketItem[] = markets.map((market) => {
+      const trending_score = this.calculateTrendingScore(market);
+      return {
+        id: market.id,
+        title: market.title,
+        description: market.description,
+        category: market.category,
+        outcome_options: market.outcome_options,
+        end_time: market.end_time,
+        is_resolved: market.is_resolved,
+        participant_count: market.participant_count,
+        total_pool_stroops: market.total_pool_stroops,
+        trending_score,
+        created_at: market.created_at,
+      };
+    });
+
+    scored.sort((a, b) => b.trending_score - a.trending_score);
+
+    this.trendingCache = { data: scored, cachedAt: now };
+    this.logger.log(
+      `Trending markets cache refreshed with ${scored.length} markets`,
+    );
+
+    return scored;
+  }
+
+  /**
+   * Calculate trending score based on:
+   * - Recent prediction volume (participant_count weight: 50%)
+   * - Pool size / activity indicator (total_pool weight: 30%)
+   * - Time to resolution - markets closing soon rank higher (20%)
+   */
+  private calculateTrendingScore(market: Market): number {
+    const now = Date.now();
+
+    // Participant count score (normalized, capped at 100 participants)
+    const participantScore = Math.min(market.participant_count / 100, 1) * 50;
+
+    // Pool size score (normalized, capped at 100M stroops = 10 XLM)
+    const poolSize = Number(BigInt(market.total_pool_stroops));
+    const poolScore = Math.min(poolSize / 100_000_000, 1) * 30;
+
+    // Time to resolution score - markets ending sooner rank higher
+    const endTime = new Date(market.end_time).getTime();
+    const hoursUntilEnd = Math.max((endTime - now) / (1000 * 60 * 60), 0);
+    // Markets ending within 24h get highest score, decaying over 7 days
+    const timeScore =
+      hoursUntilEnd <= 168 ? ((168 - hoursUntilEnd) / 168) * 20 : 0;
+
+    return Math.round((participantScore + poolScore + timeScore) * 100) / 100;
   }
 
   /**

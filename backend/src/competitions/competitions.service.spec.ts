@@ -1,10 +1,12 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
+import { NotFoundException } from '@nestjs/common';
 import { CompetitionsService } from './competitions.service';
 import {
   Competition,
   CompetitionVisibility,
 } from './entities/competition.entity';
+import { CompetitionParticipant } from './entities/competition-participant.entity';
 import { CreateCompetitionDto } from './dto/create-competition.dto';
 import { User } from '../users/entities/user.entity';
 
@@ -34,6 +36,11 @@ describe('CompetitionsService', () => {
     save: jest.fn(),
     find: jest.fn(),
     findOne: jest.fn(),
+    createQueryBuilder: jest.fn(),
+  };
+
+  const mockParticipantsRepository = {
+    createQueryBuilder: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -43,6 +50,10 @@ describe('CompetitionsService', () => {
         {
           provide: getRepositoryToken(Competition),
           useValue: mockRepository,
+        },
+        {
+          provide: getRepositoryToken(CompetitionParticipant),
+          useValue: mockParticipantsRepository,
         },
       ],
     }).compile();
@@ -149,6 +160,71 @@ describe('CompetitionsService', () => {
       const result = await service.findById('nonexistent-id');
 
       expect(result).toBeNull();
+    });
+  });
+
+  describe('getParticipants', () => {
+    it('should return paginated participants for a competition', async () => {
+      mockRepository.findOne.mockResolvedValue(mockCompetition);
+
+      const participants = [
+        {
+          id: 'part-1',
+          user_id: 'user-1',
+          competition_id: 'comp-uuid-1',
+          score: 100,
+          rank: 1,
+          joined_at: new Date(),
+          user: {
+            id: 'user-1',
+            username: 'alice',
+            stellar_address: 'GABCDEF',
+          },
+        },
+        {
+          id: 'part-2',
+          user_id: 'user-2',
+          competition_id: 'comp-uuid-1',
+          score: 50,
+          rank: 2,
+          joined_at: new Date(),
+          user: {
+            id: 'user-2',
+            username: null,
+            stellar_address: 'GXYZ123',
+          },
+        },
+      ];
+
+      const qbMock = {
+        leftJoinAndSelect: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        addOrderBy: jest.fn().mockReturnThis(),
+        skip: jest.fn().mockReturnThis(),
+        take: jest.fn().mockReturnThis(),
+        getManyAndCount: jest.fn().mockResolvedValue([participants, 2]),
+      };
+      mockParticipantsRepository.createQueryBuilder.mockReturnValue(qbMock);
+
+      const result = await service.getParticipants('comp-uuid-1', {
+        page: 1,
+        limit: 20,
+      });
+
+      expect(result.data).toHaveLength(2);
+      expect(result.total).toBe(2);
+      expect(result.data[0].username).toBe('alice');
+      expect(result.data[0].score).toBe(100);
+      expect(result.data[1].username).toBeNull();
+    });
+
+    it('should throw NotFoundException if competition does not exist', async () => {
+      mockRepository.findOne.mockResolvedValue(null);
+
+      await expect(
+        service.getParticipants('non-existent', { page: 1, limit: 20 }),
+      ).rejects.toThrow(NotFoundException);
     });
   });
 });

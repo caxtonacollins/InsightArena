@@ -1,16 +1,22 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, SelectQueryBuilder } from 'typeorm';
 import {
   Competition,
   CompetitionVisibility,
 } from './entities/competition.entity';
+import { CompetitionParticipant } from './entities/competition-participant.entity';
 import { CreateCompetitionDto } from './dto/create-competition.dto';
 import {
   ListCompetitionsDto,
   CompetitionStatus,
   PaginatedCompetitionsResponse,
 } from './dto/list-competitions.dto';
+import {
+  ListParticipantsQueryDto,
+  ParticipantItem,
+  PaginatedParticipantsResponse,
+} from './dto/list-participants.dto';
 import { User } from '../users/entities/user.entity';
 
 @Injectable()
@@ -18,6 +24,8 @@ export class CompetitionsService {
   constructor(
     @InjectRepository(Competition)
     private readonly competitionsRepository: Repository<Competition>,
+    @InjectRepository(CompetitionParticipant)
+    private readonly participantsRepository: Repository<CompetitionParticipant>,
   ) {}
 
   async create(dto: CreateCompetitionDto, user: User): Promise<Competition> {
@@ -137,6 +145,47 @@ export class CompetitionsService {
       return competition.start_time.getTime() - now.getTime(); // Time until start
     }
     return competition.end_time.getTime() - now.getTime(); // Time until end
+  }
+
+  async getParticipants(
+    competitionId: string,
+    dto: ListParticipantsQueryDto,
+  ): Promise<PaginatedParticipantsResponse> {
+    const competition = await this.competitionsRepository.findOne({
+      where: { id: competitionId },
+    });
+
+    if (!competition) {
+      throw new NotFoundException(
+        `Competition with ID "${competitionId}" not found`,
+      );
+    }
+
+    const page = dto.page ?? 1;
+    const limit = Math.min(dto.limit ?? 20, 50);
+    const skip = (page - 1) * limit;
+
+    const [participants, total] = await this.participantsRepository
+      .createQueryBuilder('participant')
+      .leftJoinAndSelect('participant.user', 'user')
+      .where('participant.competition_id = :competitionId', { competitionId })
+      .orderBy('participant.score', 'DESC')
+      .addOrderBy('participant.joined_at', 'ASC')
+      .skip(skip)
+      .take(limit)
+      .getManyAndCount();
+
+    const data: ParticipantItem[] = participants.map((p, index) => ({
+      id: p.id,
+      user_id: p.user_id,
+      username: p.user?.username ?? null,
+      stellar_address: p.user?.stellar_address ?? '',
+      score: p.score,
+      rank: p.rank ?? skip + index + 1,
+      joined_at: p.joined_at,
+    }));
+
+    return { data, total, page, limit };
   }
 
   async findById(id: string): Promise<Competition | null> {

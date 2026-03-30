@@ -23,6 +23,10 @@ import {
   ListCompetitionsDto,
   PaginatedCompetitionsResponse,
 } from './dto/list-competitions.dto';
+import {
+  ListParticipantsQueryDto,
+  PaginatedParticipantsResponse,
+} from './dto/list-participants.dto';
 import { Competition } from './entities/competition.entity';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Public } from '../common/decorators/public.decorator';
@@ -75,5 +79,20 @@ export class CompetitionsController {
       throw new NotFoundException(`Competition with ID "${id}" not found`);
     }
     return competition;
+  }
+
+  @Get(':id/participants')
+  @Public()
+  @ApiOperation({ summary: 'Get participants of a competition' })
+  @ApiResponse({
+    status: 200,
+    description: 'Paginated participants with scores and rankings',
+  })
+  @ApiResponse({ status: 404, description: 'Competition not found' })
+  async getParticipants(
+    @Param('id') id: string,
+    @Query() query: ListParticipantsQueryDto,
+  ): Promise<PaginatedParticipantsResponse> {
+    return this.competitionsService.getParticipants(id, query);
   }
 }

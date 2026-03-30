@@ -30,6 +30,10 @@ import {
   ListMarketsDto,
   PaginatedMarketsResponse,
 } from './dto/list-markets.dto';
+import {
+  TrendingMarketsQueryDto,
+  PaginatedTrendingMarketsResponse,
+} from './dto/trending-markets.dto';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Public } from '../common/decorators/public.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -51,6 +55,19 @@ export class MarketsController {
   })
   async getTemplates(): Promise<MarketTemplate[]> {
     return this.marketsService.getTemplates();
+  }
+
+  @Get('trending')
+  @Public()
+  @ApiOperation({ summary: 'Get trending/popular markets' })
+  @ApiResponse({
+    status: 200,
+    description: 'Paginated trending markets sorted by trending score',
+  })
+  async getTrendingMarkets(
+    @Query() query: TrendingMarketsQueryDto,
+  ): Promise<PaginatedTrendingMarketsResponse> {
+    return this.marketsService.getTrendingMarkets(query);
   }
 
   @Get(':id/predictions')
