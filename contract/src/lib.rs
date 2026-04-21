@@ -1,8 +1,6 @@
 #![no_std]
 #![allow(non_snake_case)]
 
-pub mod analytics;
-pub mod conditional;
 pub mod config;
 pub mod dispute;
 pub mod errors;
@@ -179,7 +177,7 @@ impl InsightArenaContract {
         required_outcome: Symbol,
         params: CreateMarketParams,
     ) -> Result<u64, InsightArenaError> {
-        conditional::create_conditional_market(&env, creator, parent_market_id, required_outcome, params)
+        market::create_conditional_market(&env, creator, parent_market_id, required_outcome, params)
     }
 
     // ── Dispute ───────────────────────────────────────────────────────────────
@@ -435,7 +433,7 @@ impl InsightArenaContract {
 
     /// Return aggregated stats for a single market.
     pub fn get_market_stats(env: Env, market_id: u64) -> Result<MarketStats, InsightArenaError> {
-        analytics::get_market_stats(env, market_id)
+        market::get_market_stats(env, market_id)
     }
 
     /// Return per-outcome stake totals sorted descending by stake.
@@ -443,17 +441,17 @@ impl InsightArenaContract {
         env: Env,
         market_id: u64,
     ) -> Result<Vec<(Symbol, i128)>, InsightArenaError> {
-        analytics::get_outcome_distribution(env, market_id)
+        market::get_outcome_distribution(env, market_id)
     }
 
     /// Return the stored `UserProfile` for a given address.
     pub fn get_user_stats(env: Env, user: Address) -> Result<UserProfile, InsightArenaError> {
-        analytics::get_user_stats(env, user)
+        market::get_user_stats(env, user)
     }
 
     /// Return platform-wide aggregated stats using cached counters.
     pub fn get_platform_stats(env: Env) -> PlatformStats {
-        analytics::get_platform_stats(env)
+        market::get_platform_stats(env)
     }
 
     // ── Liquidity Pool / AMM ──────────────────────────────────────────────────
