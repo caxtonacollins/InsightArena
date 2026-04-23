@@ -183,7 +183,6 @@ pub fn add_liquidity(
     market_id: u64,
     amount: i128,
 ) -> Result<i128, InsightArenaError> {
-    provider.require_auth();
     config::ensure_not_paused(env)?;
 
     if amount < MIN_LIQUIDITY {
@@ -309,7 +308,6 @@ pub fn swap_outcome(
     amount_in: i128,
     min_amount_out: i128,
 ) -> Result<i128, InsightArenaError> {
-    trader.require_auth();
     config::ensure_not_paused(env)?;
 
     if amount_in <= 0 || from_outcome == to_outcome {
