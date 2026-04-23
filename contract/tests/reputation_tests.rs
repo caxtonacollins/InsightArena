@@ -297,3 +297,60 @@ fn test_reputation_with_high_dispute_count() {
     // 600 + 100 (50*2 capped at 200) - 200 (20*50 capped at 200) = 500
     assert_eq!(reputation, 500);
 }
+
+#[test]
+fn test_reset_creator_stats_clears_all_fields() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, admin, oracle) = deploy(&env);
+    let creator = Address::generate(&env);
+
+    let id = client.create_market(&creator, &default_params(&env));
+    env.ledger().set_timestamp(env.ledger().timestamp() + 2000);
+    client.resolve_market(&oracle, &id, &symbol_short!("yes"));
+
+    let stats_before = client.get_creator_stats(&creator);
+    assert_eq!(stats_before.markets_resolved, 1);
+    assert_eq!(stats_before.markets_created, 1);
+
+    client.reset_creator_stats(&admin, &creator);
+
+    let stats_after = client.get_creator_stats(&creator);
+    assert_eq!(stats_after.markets_created, 0);
+    assert_eq!(stats_after.markets_resolved, 0);
+    assert_eq!(stats_after.average_participant_count, 0);
+    assert_eq!(stats_after.dispute_count, 0);
+    assert_eq!(stats_after.reputation_score, 0);
+}
+
+#[test]
+fn test_reset_creator_stats_unauthorized_fails() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, _admin, _) = deploy(&env);
+    let creator = Address::generate(&env);
+    let unauthorized = Address::generate(&env);
+
+    let result = client.try_reset_creator_stats(&unauthorized, &creator);
+    assert!(result.is_err());
+}
+
+#[test]
+fn test_reset_creator_stats_reputation_becomes_zero() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, admin, oracle) = deploy(&env);
+    let creator = Address::generate(&env);
+
+    let id = client.create_market(&creator, &default_params(&env));
+    env.ledger().set_timestamp(env.ledger().timestamp() + 2000);
+    client.resolve_market(&oracle, &id, &symbol_short!("yes"));
+
+    let stats_before = client.get_creator_stats(&creator);
+    assert!(stats_before.reputation_score > 0);
+
+    client.reset_creator_stats(&admin, &creator);
+
+    let stats_after = client.get_creator_stats(&creator);
+    assert_eq!(stats_after.reputation_score, 0);
+}

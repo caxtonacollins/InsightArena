@@ -384,6 +384,8 @@ pub fn swap_outcome(
         .persistent()
         .set(&DataKey::SwapHistory(market_id), &history);
 
+    update_pool_volume(env, market_id, amount_in);
+
     Ok(amount_out)
 }
 
@@ -443,3 +445,65 @@ pub fn get_lp_position_public(
 }
 
 // ── Analytics ─────────────────────────────────────────────────────────────────
+
+pub fn update_pool_volume(env: &Env, market_id: u64, amount: i128) {
+    let mut volume_entries: Vec<(u64, i128)> = env
+        .storage()
+        .persistent()
+        .get(&DataKey::PoolVolume(market_id))
+        .unwrap_or_else(|| Vec::new(env));
+
+    let now = env.ledger().timestamp();
+    let twenty_four_hours: u64 = 24 * 60 * 60;
+    let cutoff = if now > twenty_four_hours { now - twenty_four_hours } else { 0 };
+
+    let mut new_entries = Vec::new(env);
+    for entry in volume_entries.iter() {
+        if entry.0 >= cutoff {
+            new_entries.push_back(entry);
+        }
+    }
+    
+    new_entries.push_back((now, amount));
+    env.storage()
+        .persistent()
+        .set(&DataKey::PoolVolume(market_id), &new_entries);
+    env.storage()
+        .persistent()
+        .extend_ttl(&DataKey::PoolVolume(market_id), PERSISTENT_THRESHOLD, PERSISTENT_BUMP);
+}
+
+pub fn get_pool_volume_24h(env: &Env, market_id: u64) -> i128 {
+    let volume_entries: Vec<(u64, i128)> = env
+        .storage()
+        .persistent()
+        .get(&DataKey::PoolVolume(market_id))
+        .unwrap_or_else(|| Vec::new(env));
+
+    let now = env.ledger().timestamp();
+    let twenty_four_hours: u64 = 24 * 60 * 60;
+    let cutoff = if now > twenty_four_hours { now - twenty_four_hours } else { 0 };
+
+    let mut total: i128 = 0;
+    for entry in volume_entries.iter() {
+        if entry.0 >= cutoff {
+            total = total.saturating_add(entry.1);
+        }
+    }
+
+    env.storage()
+        .persistent()
+        .extend_ttl(&DataKey::PoolVolume(market_id), PERSISTENT_THRESHOLD, PERSISTENT_BUMP);
+
+    total
+}
+
+pub fn get_swap_history(env: &Env, market_id: u64) -> Vec<SwapRecord> {
+    env.storage()
+        .persistent()
+        .extend_ttl(&DataKey::SwapHistory(market_id), PERSISTENT_THRESHOLD, PERSISTENT_BUMP);
+    env.storage()
+        .persistent()
+        .get(&DataKey::SwapHistory(market_id))
+        .unwrap_or_else(|| Vec::new(env))
+}

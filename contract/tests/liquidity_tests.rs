@@ -646,3 +646,117 @@ fn test_calculate_lp_tokens_multiple_deposits() {
     assert_eq!(calculate_lp_tokens(500, 1000, 1000), Ok(500));
     assert_eq!(calculate_lp_tokens(750, 1500, 1500), Ok(750));
 }
+
+// ── Volume & History Tests (Issues #559, #560) ────────────────────────────────
+
+use insightarena_contract::market::CreateMarketParams;
+use soroban_sdk::{symbol_short, vec, String, Symbol};
+
+fn deploy_with_admin(env: &Env) -> (InsightArenaContractClient<'_>, Address) {
+    let id = env.register(InsightArenaContract, ());
+    let client = InsightArenaContractClient::new(env, &id);
+    let admin = Address::generate(env);
+    let oracle = Address::generate(env);
+    let xlm_token = register_token(env);
+    env.mock_all_auths();
+    client.initialize(&admin, &oracle, &200_u32, &xlm_token);
+    (client, admin)
+}
+
+fn create_market_params(env: &Env, now: u64) -> CreateMarketParams {
+    CreateMarketParams {
+        title: String::from_str(env, "Title"),
+        description: String::from_str(env, "Desc"),
+        category: Symbol::new(env, "Cat"),
+        outcomes: vec![env, symbol_short!("A"), symbol_short!("B")],
+        end_time: now + 1000,
+        resolution_time: now + 2000,
+        dispute_window: 1000,
+        creator_fee_bps: 0,
+        min_stake: 10,
+        max_stake: 1000000,
+        is_public: true,
+    }
+}
+
+#[test]
+fn test_pool_volume_zero_before_any_swaps() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let client = deploy(&env);
+    assert_eq!(client.get_pool_volume_24h(&123), 0);
+}
+
+#[test]
+fn test_pool_volume_returns_zero_for_unknown_market() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let client = deploy(&env);
+    assert_eq!(client.get_pool_volume_24h(&999), 0);
+}
+
+#[test]
+fn test_pool_volume_accumulates_after_swaps() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, admin) = deploy_with_admin(&env);
+    let creator = Address::generate(&env);
+
+    client.add_category(&admin, &Symbol::new(&env, "Cat"));
+    let market_id = client.create_market(&creator, &create_market_params(&env, env.ledger().timestamp()));
+    
+    client.add_liquidity(&creator, &market_id, &100_000);
+    client.swap_outcome(&creator, &market_id, &symbol_short!("A"), &symbol_short!("B"), &1000, &0);
+    client.swap_outcome(&creator, &market_id, &symbol_short!("B"), &symbol_short!("A"), &500, &0);
+
+    assert_eq!(client.get_pool_volume_24h(&market_id), 1500);
+}
+
+#[test]
+fn test_get_swap_history_empty_before_any_swaps() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let client = deploy(&env);
+
+    let history = client.get_swap_history(&123);
+    assert_eq!(history.len(), 0);
+}
+
+#[test]
+fn test_get_swap_history_returns_all_swaps() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, admin) = deploy_with_admin(&env);
+    let creator = Address::generate(&env);
+
+    client.add_category(&admin, &Symbol::new(&env, "Cat"));
+    let market_id = client.create_market(&creator, &create_market_params(&env, env.ledger().timestamp()));
+    
+    client.add_liquidity(&creator, &market_id, &100_000);
+    client.swap_outcome(&creator, &market_id, &symbol_short!("A"), &symbol_short!("B"), &1000, &0);
+    client.swap_outcome(&creator, &market_id, &symbol_short!("B"), &symbol_short!("A"), &500, &0);
+
+    let history = client.get_swap_history(&market_id);
+    assert_eq!(history.len(), 2);
+}
+
+#[test]
+fn test_get_swap_history_records_correct_amounts() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, admin) = deploy_with_admin(&env);
+    let creator = Address::generate(&env);
+
+    client.add_category(&admin, &Symbol::new(&env, "Cat"));
+    let market_id = client.create_market(&creator, &create_market_params(&env, env.ledger().timestamp()));
+    
+    client.add_liquidity(&creator, &market_id, &100_000);
+    client.swap_outcome(&creator, &market_id, &symbol_short!("A"), &symbol_short!("B"), &1000, &0);
+
+    let history = client.get_swap_history(&market_id);
+    let swap = history.get(0).unwrap();
+    
+    assert_eq!(swap.amount_in, 1000);
+    assert_eq!(swap.from_outcome, symbol_short!("A"));
+    assert_eq!(swap.to_outcome, symbol_short!("B"));
+}

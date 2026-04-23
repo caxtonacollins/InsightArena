@@ -85,6 +85,24 @@ pub fn get_creator_stats(env: Env, creator: Address) -> Result<CreatorStats, Ins
     Ok(load_stats(&env, &creator))
 }
 
+pub fn reset_creator_stats(env: &Env, admin: Address, creator: Address) -> Result<(), InsightArenaError> {
+    admin.require_auth();
+    let cfg = crate::config::get_config(env)?;
+    if admin != cfg.admin {
+        return Err(InsightArenaError::Unauthorized);
+    }
+    
+    let mut stats = load_stats(env, &creator);
+    stats.markets_created = 0;
+    stats.markets_resolved = 0;
+    stats.average_participant_count = 0;
+    stats.dispute_count = 0;
+    stats.reputation_score = 0;
+    
+    save_stats(env, &creator, &stats);
+    Ok(())
+}
+
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 // Tests have been moved to tests/reputation_tests.rs

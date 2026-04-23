@@ -438,6 +438,15 @@ impl InsightArenaContract {
         reputation::get_creator_stats(env, creator)
     }
 
+    /// Admin function to forcefully reset a creator's statistics.
+    pub fn reset_creator_stats(
+        env: Env,
+        admin: Address,
+        creator: Address,
+    ) -> Result<(), InsightArenaError> {
+        reputation::reset_creator_stats(&env, admin, creator)
+    }
+
     // ── Analytics ─────────────────────────────────────────────────────────────
 
     /// Return aggregated stats for a single market.
@@ -522,5 +531,15 @@ impl InsightArenaContract {
         market_id: u64,
     ) -> Result<crate::storage_types::LPPosition, InsightArenaError> {
         liquidity::get_lp_position_public(&env, provider, market_id)
+    }
+
+    /// Extends analytics to expose 24-hour pool trading volume.
+    pub fn get_pool_volume_24h(env: Env, market_id: u64) -> i128 {
+        liquidity::get_pool_volume_24h(&env, market_id)
+    }
+
+    /// Extends analytics to expose full swap history of the pool.
+    pub fn get_swap_history(env: Env, market_id: u64) -> Vec<SwapRecord> {
+        liquidity::get_swap_history(&env, market_id)
     }
 }
