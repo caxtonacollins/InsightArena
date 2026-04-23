@@ -302,6 +302,7 @@ describe('MarketsService.findFeaturedMarkets', () => {
         { provide: getRepositoryToken(Comment), useValue: {} },
         { provide: getRepositoryToken(MarketTemplate), useValue: {} },
         { provide: getRepositoryToken(UserBookmark), useValue: {} },
+        { provide: getRepositoryToken(Prediction), useValue: {} },
         { provide: getRepositoryToken(User), useValue: {} },
         { provide: UsersService, useValue: {} },
         { provide: SorobanService, useValue: {} },
@@ -443,6 +444,12 @@ describe('MarketsService.update', () => {
             create: jest.fn(),
             save: jest.fn(),
             delete: jest.fn(),
+          },
+        },
+        {
+          provide: getRepositoryToken(Prediction),
+          useValue: {
+            find: jest.fn(),
           },
         },
         {

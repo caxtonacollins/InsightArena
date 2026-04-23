@@ -405,7 +405,7 @@ describe('PredictionsService', () => {
       expect(result).toMatchObject({
         id: 'pred-1',
         chosen_outcome: 'Yes',
-        status: 'Won',
+        status: 'won',
       });
       expect(mockPredictionsRepo.findOne).toHaveBeenCalledWith({
         where: { id: 'pred-1' },
@@ -459,7 +459,7 @@ describe('PredictionsService', () => {
 
       const result = await service.findById('pred-1', user.id);
 
-      expect(result.status).toBe('Active');
+      expect(result.status).toBe('active');
     });
 
     it('should compute correct status for lost prediction', async () => {
@@ -485,7 +485,7 @@ describe('PredictionsService', () => {
 
       const result = await service.findById('pred-1', user.id);
 
-      expect(result.status).toBe('Lost');
+      expect(result.status).toBe('lost');
     });
   });
 });

@@ -11,6 +11,7 @@ import { UsersService } from '../users/users.service';
 import { User } from '../users/entities/user.entity';
 import { CreateMarketDto } from './dto/create-market.dto';
 import { UserBookmark } from './entities/user-bookmark.entity';
+import { Prediction } from '../predictions/entities/prediction.entity';
 
 describe('MarketsService - Bulk Creation', () => {
   let service: MarketsService;
@@ -89,6 +90,12 @@ describe('MarketsService - Bulk Creation', () => {
             create: jest.fn(),
             save: jest.fn(),
             delete: jest.fn(),
+          },
+        },
+        {
+          provide: getRepositoryToken(Prediction),
+          useValue: {
+            find: jest.fn(),
           },
         },
         {
