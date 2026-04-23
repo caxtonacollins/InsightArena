@@ -1,4 +1,8 @@
-import { BadRequestException, ConflictException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
@@ -6,10 +10,12 @@ import { SorobanService } from '../soroban/soroban.service';
 import { User } from '../users/entities/user.entity';
 import { UsersService } from '../users/users.service';
 import { CreateMarketDto } from './dto/create-market.dto';
+import { UpdateMarketDto } from './dto/update-market.dto';
 import { Comment } from './entities/comment.entity';
 import { MarketTemplate } from './entities/market-template.entity';
 import { Market } from './entities/market.entity';
 import { UserBookmark } from './entities/user-bookmark.entity';
+import { Prediction } from '../predictions/entities/prediction.entity';
 import { MarketsService } from './markets.service';
 
 type MockRepo = jest.Mocked<
@@ -91,6 +97,12 @@ describe('MarketsService', () => {
             create: jest.fn(),
             save: jest.fn(),
             delete: jest.fn(),
+          },
+        },
+        {
+          provide: getRepositoryToken(Prediction),
+          useValue: {
+            find: jest.fn(),
           },
         },
         {
@@ -368,5 +380,318 @@ describe('MarketsService.findFeaturedMarkets', () => {
 
     expect(mockQueryBuilder.skip).toHaveBeenCalledWith(10);
     expect(mockQueryBuilder.take).toHaveBeenCalledWith(10);
+  });
+});
+
+describe('MarketsService.update', () => {
+  let service: MarketsService;
+  let marketsRepository: MockRepo;
+
+  const mockCreator = {
+    id: 'creator-1',
+    stellar_address: 'GABC123',
+  } as User;
+
+  const mockOtherUser = {
+    id: 'user-2',
+    stellar_address: 'GDEF456',
+  } as User;
+
+  const makeMarket = (overrides: Partial<Market> = {}): Market =>
+    ({
+      id: 'market-1',
+      on_chain_market_id: 'on-chain-1',
+      title: 'Original Title',
+      description: 'Original description',
+      category: 'Crypto',
+      outcome_options: ['YES', 'NO'],
+      end_time: new Date(Date.now() + 60_000),
+      resolution_time: new Date(Date.now() + 120_000),
+      is_resolved: false,
+      is_cancelled: false,
+      creator: mockCreator,
+      ...overrides,
+    }) as Market;
+
+  beforeEach(async () => {
+    marketsRepository = {
+      create: jest.fn(),
+      save: jest.fn(),
+      findOne: jest.fn(),
+      find: jest.fn(),
+    };
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        MarketsService,
+        {
+          provide: getRepositoryToken(Market),
+          useValue: marketsRepository,
+        },
+        {
+          provide: getRepositoryToken(Comment),
+          useValue: marketsRepository,
+        },
+        {
+          provide: getRepositoryToken(MarketTemplate),
+          useValue: marketsRepository,
+        },
+        {
+          provide: getRepositoryToken(UserBookmark),
+          useValue: {
+            findOne: jest.fn(),
+            create: jest.fn(),
+            save: jest.fn(),
+            delete: jest.fn(),
+          },
+        },
+        {
+          provide: UsersService,
+          useValue: {},
+        },
+        {
+          provide: SorobanService,
+          useValue: {},
+        },
+        {
+          provide: DataSource,
+          useValue: {},
+        },
+      ],
+    }).compile();
+
+    service = module.get<MarketsService>(MarketsService);
+  });
+
+  it('should update market when caller is creator', async () => {
+    const market = makeMarket();
+    const dto: UpdateMarketDto = {
+      title: 'Updated Title',
+      description: 'Updated description',
+    };
+
+    marketsRepository.findOne.mockResolvedValue(market);
+    marketsRepository.save.mockResolvedValue({
+      ...market,
+      ...dto,
+    });
+
+    const result = await service.update('market-1', mockCreator.id, dto);
+
+    expect(marketsRepository.findOne).toHaveBeenCalledWith({
+      where: [{ id: 'market-1' }, { on_chain_market_id: 'market-1' }],
+      relations: ['creator'],
+    });
+    expect(marketsRepository.save).toHaveBeenCalled();
+    expect(result.title).toBe('Updated Title');
+    expect(result.description).toBe('Updated description');
+  });
+
+  it('should throw ForbiddenException when caller is not creator', async () => {
+    const market = makeMarket();
+    const dto: UpdateMarketDto = { title: 'Updated Title' };
+
+    marketsRepository.findOne.mockResolvedValue(market);
+
+    await expect(
+      service.update('market-1', mockOtherUser.id, dto),
+    ).rejects.toThrow(ForbiddenException);
+    expect(marketsRepository.save).not.toHaveBeenCalled();
+  });
+
+  it('should throw BadRequestException when market has ended', async () => {
+    const market = makeMarket({
+      end_time: new Date(Date.now() - 60_000), // ended 1 minute ago
+    });
+    const dto: UpdateMarketDto = { title: 'Updated Title' };
+
+    marketsRepository.findOne.mockResolvedValue(market);
+
+    await expect(
+      service.update('market-1', mockCreator.id, dto),
+    ).rejects.toThrow(BadRequestException);
+    expect(marketsRepository.save).not.toHaveBeenCalled();
+  });
+
+  it('should update only provided fields', async () => {
+    const market = makeMarket();
+    const dto: UpdateMarketDto = { title: 'New Title' };
+
+    marketsRepository.findOne.mockResolvedValue(market);
+    marketsRepository.save.mockResolvedValue({
+      ...market,
+      title: 'New Title',
+    });
+
+    const result = await service.update('market-1', mockCreator.id, dto);
+
+    expect(result.title).toBe('New Title');
+    expect(result.description).toBe('Original description');
+    expect(result.category).toBe('Crypto');
+  });
+
+  it('should update category when provided', async () => {
+    const market = makeMarket();
+    const dto: UpdateMarketDto = { category: 'Sports' };
+
+    marketsRepository.findOne.mockResolvedValue(market);
+    marketsRepository.save.mockResolvedValue({
+      ...market,
+      category: 'Sports',
+    });
+
+    const result = await service.update('market-1', mockCreator.id, dto);
+
+    expect(result.category).toBe('Sports');
+  });
+});
+
+
+describe('MarketsService.getPredictionStats', () => {
+  let service: MarketsService;
+  let marketsRepository: MockRepo;
+  let predictionsRepository: jest.Mocked<
+    Pick<Repository<Prediction>, 'find'>
+  >;
+
+  const mockMarket = {
+    id: 'market-1',
+    on_chain_market_id: 'on-chain-1',
+    title: 'Test Market',
+    outcome_options: ['Yes', 'No'],
+    creator: { id: 'creator-1' } as User,
+  } as Market;
+
+  beforeEach(async () => {
+    marketsRepository = {
+      create: jest.fn(),
+      save: jest.fn(),
+      findOne: jest.fn(),
+      find: jest.fn(),
+    };
+
+    predictionsRepository = {
+      find: jest.fn(),
+    };
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        MarketsService,
+        {
+          provide: getRepositoryToken(Market),
+          useValue: marketsRepository,
+        },
+        {
+          provide: getRepositoryToken(Comment),
+          useValue: marketsRepository,
+        },
+        {
+          provide: getRepositoryToken(MarketTemplate),
+          useValue: marketsRepository,
+        },
+        {
+          provide: getRepositoryToken(UserBookmark),
+          useValue: {
+            findOne: jest.fn(),
+            create: jest.fn(),
+            save: jest.fn(),
+            delete: jest.fn(),
+          },
+        },
+        {
+          provide: getRepositoryToken(Prediction),
+          useValue: predictionsRepository,
+        },
+        {
+          provide: UsersService,
+          useValue: {},
+        },
+        {
+          provide: SorobanService,
+          useValue: {},
+        },
+        {
+          provide: DataSource,
+          useValue: {},
+        },
+      ],
+    }).compile();
+
+    service = module.get<MarketsService>(MarketsService);
+  });
+
+  it('should return real prediction statistics from database', async () => {
+    marketsRepository.findOne.mockResolvedValue(mockMarket);
+
+    const predictions = [
+      {
+        chosen_outcome: 'Yes',
+        stake_amount_stroops: '10000000',
+      },
+      {
+        chosen_outcome: 'Yes',
+        stake_amount_stroops: '5000000',
+      },
+      {
+        chosen_outcome: 'No',
+        stake_amount_stroops: '8000000',
+      },
+    ] as Prediction[];
+
+    predictionsRepository.find.mockResolvedValue(predictions);
+
+    const result = await service.getPredictionStats('market-1');
+
+    expect(result).toHaveLength(2);
+    expect(result[0]).toMatchObject({
+      outcome: 'Yes',
+      count: 2,
+      total_staked_stroops: '15000000',
+    });
+    expect(result[1]).toMatchObject({
+      outcome: 'No',
+      count: 1,
+      total_staked_stroops: '8000000',
+    });
+  });
+
+  it('should return zero counts for outcomes with no predictions', async () => {
+    marketsRepository.findOne.mockResolvedValue(mockMarket);
+    predictionsRepository.find.mockResolvedValue([]);
+
+    const result = await service.getPredictionStats('market-1');
+
+    expect(result).toHaveLength(2);
+    expect(result[0]).toMatchObject({
+      outcome: 'Yes',
+      count: 0,
+      total_staked_stroops: '0',
+    });
+    expect(result[1]).toMatchObject({
+      outcome: 'No',
+      count: 0,
+      total_staked_stroops: '0',
+    });
+  });
+
+  it('should cache results for 5 minutes', async () => {
+    marketsRepository.findOne.mockResolvedValue(mockMarket);
+    predictionsRepository.find.mockResolvedValue([]);
+
+    // First call
+    await service.getPredictionStats('market-1');
+    expect(predictionsRepository.find).toHaveBeenCalledTimes(1);
+
+    // Second call should use cache
+    await service.getPredictionStats('market-1');
+    expect(predictionsRepository.find).toHaveBeenCalledTimes(1);
+  });
+
+  it('should throw NotFoundException if market does not exist', async () => {
+    marketsRepository.findOne.mockResolvedValue(null);
+
+    await expect(service.getPredictionStats('non-existent')).rejects.toThrow(
+      'Market with ID "non-existent" not found',
+    );
   });
 });
